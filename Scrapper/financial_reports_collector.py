@@ -6,7 +6,6 @@ import datetime as dt
 import requests
 import xml.etree.ElementTree as ET
 
-
 def filings_df(address):
 #     variables 
     reports_list = []
@@ -55,7 +54,6 @@ def filings_df(address):
     
     return filings_df
 
-
 def filings_collector(cik):
     establishing_url = f'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=&dateb=&owner=exclude&start=0&count=100'
     establishing_df = filings_df(establishing_url)
@@ -67,7 +65,6 @@ def filings_collector(cik):
         except:
             break
     return establishing_df
-
 
 def xbrl_dict(xbrl_address):
 #     response and ElementTree
@@ -90,69 +87,92 @@ def xbrl_dict(xbrl_address):
 
         if uri[0:23] == 'http://xbrl.sec.gov/dei':
             uri_dict['sec'] = uri
+        elif uri[0:18] == 'http://xbrl.us/dei':
+            uri_dict['sec'] = uri
         elif uri[0:23] == 'http://fasb.org/us-gaap':
+            uri_dict['gaap'] = uri
+        elif uri[0:22] == 'http://xbrl.us/us-gaap':
             uri_dict['gaap'] = uri
     
 #     defining xbrl data dictionary
     doc_date_str = root.find('sec:DocumentPeriodEndDate', uri_dict).text
+    fisc_year_end = root.find('sec:CurrentFiscalYearEndDate', uri_dict).text
+    fisc_year_end_suffix = fisc_year_end[-5:len(fisc_year_end)]
+    doc_date_suffix = doc_date_str[-5:len(doc_date_str)]
     doc_date_dt = dt.date.fromisoformat(doc_date_str)
     exceptions = 1
-    entry_dict = {'company_name' : root.find('sec:EntityRegistrantName', uri_dict).text,
-                'trading_symbol' : root.find('sec:TradingSymbol', uri_dict).text,
-                'CIK' : root.find('sec:EntityCentralIndexKey', uri_dict).text,
-                'doc_date' : doc_date_dt,
-                'doc_year' : root.find('sec:DocumentFiscalYearFocus', uri_dict).text,
-                'doc_period' : root.find('sec:DocumentFiscalPeriodFocus', uri_dict).text,
-                'common_shares_outstanding' : int(root.find('sec:EntityCommonStockSharesOutstanding', uri_dict).text),
-                'amendment_flag' : root.find('sec:AmendmentFlag', uri_dict).text}
+    
+    if doc_date_suffix == fisc_year_end_suffix:
+        doc_fisc_year = doc_date_dt.year-1    
+    
+    if uri_dict['sec'][0:23] == 'http://xbrl.sec.gov/dei':
+        entry_dict = {'company_name' : root.find('sec:EntityRegistrantName', uri_dict).text,
+                    'trading_symbol' : root.find('sec:TradingSymbol', uri_dict).text,
+                    'CIK' : root.find('sec:EntityCentralIndexKey', uri_dict).text,
+                    'doc_date' : doc_date_dt,
+                    'doc_year' : root.find('sec:DocumentFiscalYearFocus', uri_dict).text,
+                    'doc_period' : root.find('sec:DocumentFiscalPeriodFocus', uri_dict).text,
+                    'common_shares_outstanding' : int(root.find('sec:EntityCommonStockSharesOutstanding', uri_dict).text),
+                    'amendment_flag' : root.find('sec:AmendmentFlag', uri_dict).text}
+        
+    elif uri_dict['sec'][0:18] == 'http://xbrl.us/dei':
+#         entry_dict = {'company_name' : root.find('sec:EntityRegistrantName', uri_dict).text,
+#                     'trading_symbol' : '',
+#                     'CIK' : root.find('sec:EntityCentralIndexKey', uri_dict).text,
+#                     'doc_date' : doc_date_dt,
+#                     'doc_year' : doc_fisc_year,
+#                     'doc_period' : root.find('sec:DocumentType', uri_dict).text[-1],
+#                     'common_shares_outstanding' : int(root.find('sec:EntityCommonStockSharesOutstanding', uri_dict).text),
+#                     'amendment_flag' : root.find('sec:AmendmentFlag', uri_dict).text}
+        entry_dict = {'company_name' : 'previouse xbrl version'}
+    
     
 #     Collecting information
     for child in root:
-    
-        uri_pos = child.tag.index('}')
-        uri = ''.join(child.tag[1:uri_pos])
-        name = ''.join(child.tag[int(uri_pos+1):len(child.tag)])
-        current_focus_period = root.find('sec:DocumentFiscalPeriodFocus', uri_dict).text
-        current_focus_year = root.find('sec:DocumentFiscalYearFocus', uri_dict).text
+        if entry_dict['company_name'] == 'previouse xbrl version':
+            break
+        else:
+            uri_pos = child.tag.index('}')
+            uri = ''.join(child.tag[1:uri_pos])
+            name = ''.join(child.tag[int(uri_pos+1):len(child.tag)])
+            current_focus_period = entry_dict['doc_period']
+            current_focus_year = entry_dict['doc_year']
 
-    #     Quater or Annual
-        if current_focus_period[0] == "Q":
-            current_context = str(f'{current_focus_year}{current_focus_period}QTD')
-        elif current_focus_period[0] == "F":
-            current_context = str(f'{current_focus_year}Q4YTD')  
+        #     Quater or Annual
+            if current_focus_period == "Q2" or current_focus_period == "Q3":
+                current_context = str(f'{current_focus_year}{current_focus_period}QTD')
+            elif current_focus_period == "Q1":
+                current_context = str(f'{current_focus_year}{current_focus_period}YTD')
+            elif current_focus_period[0] == "F" or current_focus_period[0] == "K":
+                current_context = str(f'{current_focus_year}Q4YTD')  
 
-    #     Finding only current info
-        if uri == uri_dict['gaap']:
-            context_ref = child.attrib['contextRef']
-            if len(context_ref) == 11:
-                if context_ref[2:12] == current_context:
-                    try:
-                        decimals = int(child.attrib['decimals'])
-                        if decimals <= 0:
-                            data = int(child.text)
-                        else:
-                            data = float(child.text)   
-                        entry_dict[name] = data    
-                    except:
-                        exceptions += 1
-                        
-                elif len(context_ref) == 8:
-                    if context_ref[2:8] == current_context[0:6]:
+        #     Finding only current info
+            if uri == uri_dict['gaap']:
+                context_ref = child.attrib['contextRef']
+                if len(context_ref) == 11:
+                    if context_ref[2:12] == current_context:
                         try:
                             decimals = int(child.attrib['decimals'])
                             if decimals <= 0:
                                 data = int(child.text)
                             else:
-                                data = float(child.text)
-                            entry_dict[name] = data
+                                data = float(child.text)   
+                            entry_dict[name] = data    
                         except:
                             exceptions += 1
+
+                    elif len(context_ref) == 8:
+                        if context_ref[2:8] == current_context[0:6]:
+                            try:
+                                decimals = int(child.attrib['decimals'])
+                                if decimals <= 0:
+                                    data = int(child.text)
+                                else:
+                                    data = float(child.text)
+                                entry_dict[name] = data
+                            except:
+                                exceptions += 1
                                      
     entry_dict['exceptions'] = exceptions            
                             
     return entry_dict
-
-
-
-
-
