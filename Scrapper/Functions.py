@@ -42,7 +42,7 @@ def filings_df(address):
             for row in rows:
                 cells = row.find_all('td')
                 if len(cells) > 3:
-                    if 'INS' in cells[3].text:
+                    if 'INS' in cells[3].text or 'INSTANCE' in cells[1].text:
                         xbrl_link = 'https://www.sec.gov' + cells[2].a['href']
                         report.update({'xbrl_link' : xbrl_link})
         except:
@@ -107,7 +107,6 @@ def xbrl_dict(xbrl_address):
     
     if uri_dict['sec'][0:23] == 'http://xbrl.sec.gov/dei':
         entry_dict = {'company_name' : root.find('sec:EntityRegistrantName', uri_dict).text,
-                    'trading_symbol' : root.find('sec:TradingSymbol', uri_dict).text,
                     'CIK' : root.find('sec:EntityCentralIndexKey', uri_dict).text,
                     'doc_date' : doc_date_dt,
                     'doc_year' : root.find('sec:DocumentFiscalYearFocus', uri_dict).text,
@@ -117,7 +116,6 @@ def xbrl_dict(xbrl_address):
         
     elif uri_dict['sec'][0:18] == 'http://xbrl.us/dei':
 #         entry_dict = {'company_name' : root.find('sec:EntityRegistrantName', uri_dict).text,
-#                     'trading_symbol' : '',
 #                     'CIK' : root.find('sec:EntityCentralIndexKey', uri_dict).text,
 #                     'doc_date' : doc_date_dt,
 #                     'doc_year' : doc_fisc_year,
