@@ -94,12 +94,13 @@ def xbrl_dict(xbrl_address):
         elif uri[0:22] == 'http://xbrl.us/us-gaap':
             uri_dict['gaap'] = uri
     
-#     defining xbrl data dictionary
+##     defining xbrl data dictionary
+#       collecting standard file info
     doc_date_str = root.find('sec:DocumentPeriodEndDate', uri_dict).text
     fisc_year_end = root.find('sec:CurrentFiscalYearEndDate', uri_dict).text
     fisc_year_end_suffix = fisc_year_end[-5:len(fisc_year_end)]
     doc_date_suffix = doc_date_str[-5:len(doc_date_str)]
-    doc_date_dt = dt.date.fromisoformat(doc_date_str)
+    doc_date_dt = dt.datetime.fromisoformat(doc_date_str)
     exceptions = 1
     
     if doc_date_suffix == fisc_year_end_suffix:
@@ -125,7 +126,7 @@ def xbrl_dict(xbrl_address):
         entry_dict = {'company_name' : 'previouse xbrl version'}
     
     
-#     Collecting information
+#     Collecting dynamic file information
     for child in root:
         if entry_dict['company_name'] == 'previouse xbrl version':
             break
