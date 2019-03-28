@@ -171,7 +171,6 @@ def xbrl_dict(xbrl_address):
                                 entry_dict[name] = data
                             except:
                                 exceptions += 1
-                                     
     entry_dict['exceptions'] = exceptions            
                             
     return entry_dict
