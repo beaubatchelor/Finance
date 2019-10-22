@@ -47,6 +47,32 @@ def filings_df(address):
                         report.update({'xbrl_link' : xbrl_link})
         except:
             report.update({'xbrl_link' : 'N/A'})
+        try:
+            table_tag = soup.find('table', class_='tableFile', summary='Document Format Files')
+            rows = table_tag.find_all('tr')
+            for row in rows:
+                cells = row.find_all('td')
+                if len(cells) > 3:
+                    if '10-K' in cells[3].text or '10-Q' in cells[3].text:
+                        html_link = 'https://www.sec.gov' + cells[2].a['href']
+                        report.update({'html_link' : html_link})
+        except:
+            report.update({'html_link' : 'N/A'})
+        try:
+            button_tag = soup.find('a', id='interactiveDataBtn')
+            inter_link = 'https://www.sec.gov' + button_tag['href']
+            report.update({'inter_link' : inter_link})
+        except:
+            report.update({'inter_link' : 'N/A'})
+        try:
+            info_tag = soup.find('p', class_='identInfo')
+            cik_raw_num = soup.find('span', class_= 'companyName').a.text
+            cik_num = cik_raw_num[0:cik_raw_num.index(' (')]
+            sic_num = info_tag.b.a.text
+            report.update({'cik_num' : str(cik_num), 'sic_num' : str(sic_num)})
+
+        except:
+            report.update({'cik_num' : 'N/A', 'sic_num' : 'N/A'})
         
 #     make dataframe
     
